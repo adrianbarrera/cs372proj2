@@ -9,6 +9,9 @@
 #include "ULT.h"
 
 ThrdCtlBlk * ready[1024];
+int nextTid = 0;
+
+void * switchThread(Tid wantTid);
 
 Tid 
 ULT_CreateThread(void (*fn)(void *), void *parg)
@@ -31,18 +34,31 @@ Tid ULT_DestroyThread(Tid tid)
   return ULT_FAILED;
 }
 
-void switch(Tid wantTid)
+void * switchThread(Tid wantTid)
 {
   volatile int doneThat;
   
+  struct ucontext *thisContext;
+  ThrdCtlBlk *currentThread;
+  ThrdCtlBlk *nextThread;
   //save state of current thread to TCB
-  getcontext( &(runningThread->tcb.context));
+  getcontext( &(thisContext));
+  currentThread->context = thisContext;
+  currentThread->tid = nextTid;
+
+  ready[nextTid] = currentThread;
 
   if(!doneThat)
   {
     doneThat = 1;
 	//choose new thread to run
-    nextId = wantTid;
+    if(wantTid = ULT_SELF) {
+		nextThread = currentThread;
+	}
 
+    nextTid++;
+	setcontext(&(nextThread->context));
+  }
+}
 
 

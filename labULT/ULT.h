@@ -9,10 +9,18 @@ typedef int Tid;
 
 
 typedef struct ThrdCtlBlk{
-  ucontext context;
-  Tid id;
+  struct ucontext * context;
+  Tid tid;
   int zombie;
 } ThrdCtlBlk;
+
+// implement later
+typedef struct Ready{
+  // This needs to be an array
+  ThrdCtlBlk * list[1024];
+  int head;
+} Ready;
+  
 
 /*
  * Tids between 0 and ULT_MAX_THREADS-1 may
