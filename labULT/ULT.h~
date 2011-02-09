@@ -9,7 +9,7 @@ typedef int Tid;
 
 
 typedef struct ThrdCtlBlk{
-  struct ucontext * context;
+  struct ucontext context;
   Tid tid;
   int zombie;
 } ThrdCtlBlk;

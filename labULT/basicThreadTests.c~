@@ -37,7 +37,7 @@ void basicThreadTests()
   /*
    * Initial thread yields
    */
-  ret = ULT_Yield(ULT_SELF);
+  ret = ULT_Yield(0);
   assert(ULT_isOKRet(ret));
   printf("Initial thread returns from Yield(SELF)\n");
   ret = ULT_Yield(0); /* See ULT.h -- initial thread must be Tid 0 */

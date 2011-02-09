@@ -75,9 +75,9 @@ void switchThread(Tid wantTid)
   
   getcontext(runningThread->context);
 
-  if(wantTid == runningThread->tid) {
+  /*if(wantTid == runningThread->tid) {
     wantTid = ULT_SELF;
-  }
+  }*/
   
   if(doneThat == 0)
   {

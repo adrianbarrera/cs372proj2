@@ -7,14 +7,16 @@
 #define __USE_GNU
 #endif
 #include <ucontext.h>
-
+#include "ULT.h"
 #define SOL 99
 
 unsigned int probeUCStack(char *string);
 
 int main(int argc, char **argv)
 {
-
+  printf("Size of TCB: %d\n", sizeof(ThrdCtlBlk));
+  int sum = sizeof(struct ucontext *) + sizeof(Tid) + sizeof(int);
+  printf("Size of TCB: %d\n", sum);
   ucontext_t mycontext;
   int err;
 
