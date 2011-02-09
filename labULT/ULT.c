@@ -75,27 +75,29 @@ void switchThread(Tid wantTid)
   
   getcontext(runningThread->context);
 
-  if(wantTid == runningThread->tid) {
-    wantTid = ULT_SELF;
-  }
   
   if(doneThat == 0)
   {
     doneThat = 1;
+  
+    if(wantTid == runningThread->tid) {
+      wantTid = ULT_SELF;
+    }
+  
     if(wantTid != ULT_ANY && wantTid != ULT_SELF) {
-      if(ready[wantTid] == NULL || ready[wantTid]->zombie == 1 || wantTid < -2 || wantTid > 1023) {
+      if(wantTid < -2 || wantTid > 1023 || ready[wantTid] == NULL || ready[wantTid]->zombie == 1) {
 	ret = ULT_INVALID;
 	setcontext(runningThread->context);
       }
     }
     
     //choose new thread to run
-    if(wantTid == ULT_SELF) {
+    else if(wantTid == ULT_SELF) {
       ret = runningThread->tid;
       setcontext(runningThread->context);
     }
     
-    if(wantTid == ULT_ANY) {
+    else if(wantTid == ULT_ANY) {
       if(readySize == 0) {
 	ret = ULT_NONE;
 	setcontext(runningThread->context);
@@ -109,7 +111,9 @@ void switchThread(Tid wantTid)
       ret = runningThread->tid;
       setcontext(ready[i]->context);
     }
-    
+   
+    else
+	ret = -15; 
   }
   
   return;
