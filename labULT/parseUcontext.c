@@ -32,6 +32,10 @@ int main(int argc, char **argv)
   int usize = sizeof(mycontext);
   printf("A ucontext_t is %d bytes\n", usize);
 
+  stack_t s1 = mycontext.uc_stack;
+  void * p1 = s1.ss_sp; 
+  printf("Stack pointer for main: %p\n", p1);
+
   unsigned int anotherSample = probeUCStack("Dummy argument.");
 
   /* 
@@ -47,7 +51,8 @@ int main(int argc, char **argv)
    * First, think about program counters (called eip in x86)
    */
   printf("The memory address of the function main() is 0x%x\n", (unsigned int)-1);
-  printf("The memory address of the program counter (EIP) saved in mycontext is 0x%x\n", (unsigned int)-1);
+  printf("The memory address of the function probeUCStack() is 0x%x\n", (unsigned int)-1);
+  printf("The memory address of the program counter (EIP) saved in mycontext is 0x%x\n", mycontext.uc_mcontext.gregs[REG_EIP]);
 
   /*
    * Now, think about stacks. 
@@ -101,15 +106,11 @@ int main(int argc, char **argv)
 unsigned int 
 probeUCStack(char *str)
 {
-  /*struct ucontext * newcontext;
-  newcontext = (struct ucontext *)malloc(sizeof(struct ucontext));
-  int u = getcontext(&newcontext);*/
-
-  ucontext_t newcontext;
+  struct ucontext newcontext;
   int u = getcontext(&newcontext);
  
-  //stack_t s = newcontext->uc_stack;
-  //void * p = s.ss_sp; 
-  printf("Stack pointer: %x\n", u);
+  stack_t s = newcontext.uc_stack;
+  void * p = s.ss_sp; 
+  printf("Stack pointer: %p\n", p);
   return 0;
 }

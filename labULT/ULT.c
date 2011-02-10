@@ -8,14 +8,17 @@
 #endif /* __USE_GNU */
 #include <ucontext.h>
 
+#include "ReadyList.h"
 #include "ULT.h"
 
 ThrdCtlBlk * ready[1024];
+int tidLog[1024];
 int readySize = 0;
 ThrdCtlBlk * runningThread;
 int nextTid = 0;
 int init = 0;
 Tid ret = -1;
+ReadyList *rl;
 
 void switchThread(Tid wantTid);
 int firstFree();
@@ -30,8 +33,10 @@ void initialize()
   
   // will be calling getcontext later
   //getcontext(runningThread->context);
+  rl = (ReadyList *)malloc(sizeof(ReadyList));
   
   runningThread->tid = 0;
+  tidLog[0] = 1;
   runningThread->zombie = 0;
 }
 
@@ -104,38 +109,32 @@ void switchThread(Tid wantTid)
 	setcontext(runningThread->context);
       }
       
-      int i = 0;
-      while(ready[i] == NULL || ready[i]->zombie == 1) {
-	i++;
-      }
-
-      int j = firstFree();
-      ready[j] = runningThread;
-      ready[j]->tid = j;
+      ready[runningThread->tid] = runningThead;
       
+      int i = first();
       runningThread = ready[i];
+      ready[runningThread->tid] = NULL;
       ret = runningThread->tid;
-      setcontext(ready[i]->context);
+      setcontext(runningThread->context);
     }
    
     else {
-      int j = firstFree();
-      ready[j] = runningThread;
-      ready[j]->tid = j;
+      ready[runningThread->tid] = runningThead;
       
       runningThread = ready[wantTid];
+      ready[runningThread->tid] = NULL;
       ret = runningThread->tid;
-      setcontext(ready[wantTid]->context);
+      setcontext(runningThread->context);
     }
   }
   
   return;
 }
 
-int firstFree()
+int first()
 {
   int j = 0;
-  while(ready[j] != NULL && j != wantTid && j < 1024){
+  while(tidLog[j] == 0 && j != runningThread->tid && j < 1024){
     j++;
   }
   return j;
