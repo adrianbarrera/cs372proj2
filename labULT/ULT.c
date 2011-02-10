@@ -18,6 +18,7 @@ int init = 0;
 Tid ret = -1;
 
 void switchThread(Tid wantTid);
+int firstFree();
 
 
 void initialize()
@@ -107,16 +108,37 @@ void switchThread(Tid wantTid)
       while(ready[i] == NULL || ready[i]->zombie == 1) {
 	i++;
       }
+
+      int j = firstFree();
+      ready[j] = runningThread;
+      ready[j]->tid = j;
+      
       runningThread = ready[i];
       ret = runningThread->tid;
       setcontext(ready[i]->context);
     }
    
-    else
-	ret = -15; 
+    else {
+      int j = firstFree();
+      ready[j] = runningThread;
+      ready[j]->tid = j;
+      
+      runningThread = ready[wantTid];
+      ret = runningThread->tid;
+      setcontext(ready[wantTid]->context);
+    }
   }
   
   return;
+}
+
+int firstFree()
+{
+  int j = 0;
+  while(ready[j] != NULL && j != wantTid && j < 1024){
+    j++;
+  }
+  return j;
 }
 
 
