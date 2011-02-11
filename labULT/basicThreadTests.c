@@ -76,7 +76,6 @@ void basicThreadTests()
   }
   for(ii = 0; ii < NTHREAD; ii++){
     ret = ULT_Yield(children[ii]);
-    printf("ret: %d children: %d\n", ret, children[ii]);
     assert(ret == children[ii]);
   }
 

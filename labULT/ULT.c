@@ -11,18 +11,21 @@
 //#include "ReadyList.h"
 #include "ULT.h"
 
+// Each spot in the ready list points to a TCB or null
+// Threads are indexed by their tid
 ThrdCtlBlk * ready[1024];
+
+// Used tidLog to indicate which spots/tids in the ready list are in use
 int tidLog[1024];
 int readySize = 0;
 ThrdCtlBlk * runningThread;
 int init = 0;
-//Tid yret = -1;
-//ReadyList *rl;
 
 void switchThread(Tid wantTid);
 int first();
 Tid ULT_DestroyThread(Tid tid);
 int getNextTid();
+void freeZombies();
 
 void stub(void (*root)(void *), void *arg)
 {
@@ -34,19 +37,19 @@ void stub(void (*root)(void *), void *arg)
   exit(0); // all threads are done, so process should exit 
 } 
 
+/*
+ * Need this function to create our first runningThread and clear the ready list
+ */
 void initialize()
 {
   init = 1;
 
   runningThread = (ThrdCtlBlk *)malloc(sizeof(struct ThrdCtlBlk));
   runningThread->context = (struct ucontext *)malloc(sizeof(struct ucontext));
-  //runningThread->context->uc_stack.ss_sp = (void *)malloc(ULT_MIN_STACK);
-  
-  // will be calling getcontext later
-  //getcontext(runningThread->context);
-  //rl = (ReadyList *)malloc(sizeof(ReadyList));
   
   int i = 0;
+
+  // Clear out the ready list so that it isnt full of garbage
   while(i < 1024) {
 	  ready[i] = NULL;
 	  i++;
@@ -64,9 +67,12 @@ ULT_CreateThread(void (*fn)(void *), void *parg)
   if(init == 0) {
     initialize();
   }
+
+  //check if there are any zombies to be freed
+  freeZombies();
   
   // Check if we have too many threads
-  if(readySize == 1024)
+  if(readySize == 1023)
     return ULT_NOMORE;
   
   struct ucontext * cntxt;
@@ -80,35 +86,28 @@ ULT_CreateThread(void (*fn)(void *), void *parg)
   // Change PC to point to stub function
   newThread->context->uc_mcontext.gregs[REG_EIP] = (unsigned int) &stub;
   
-  // Allocate stack
-  //newThread->context->uc_stack.ss_sp = (void *)malloc(ULT_MIN_STACK);
+  // Allocate stack and move to top
   int * stack = malloc(ULT_MIN_STACK);
-  //printf("REG_ESP after malloc is at address: %p\n", stack);
   stack = stack + (ULT_MIN_STACK / 4);
-  //printf("REG_ESP after adjust is at address: %p\n", stack);
   
   if(stack == NULL)
     return ULT_NOMEMORY;
     
-  // move stack pointer and include arguments
+  // Push arguments onto stack
   *stack = (unsigned int) parg;
   stack--;
-  //printf("REG_ESP after moving to top is at address: %p\n", stack);
   *stack = (unsigned int) fn;
   stack--;
-  //printf("REG_ESP after pushing args is at address: %p\n", stack);
   
+  // Make stack pointer point to stack we created
   newThread->context->uc_mcontext.gregs[REG_ESP] = (unsigned int)stack;
   
   newThread->tid = getNextTid();
   newThread->yret = -1;
   ready[newThread->tid] = newThread;
-  //if(ready[newThread->tid] == NULL);
-  //printf("ready[newThread->tid]: %p\n", ready[newThread->tid]);
   tidLog[newThread->tid] = 1;
   readySize++;
   
-  //printf("Tid of created thread: %d\n", ready[newThread->tid]->tid);
   return newThread->tid;
 }
 
@@ -120,12 +119,7 @@ Tid ULT_Yield(Tid wantTid)
     initialize();
   }
   
-  //printf("ready[wantTid]: %p\n", ready[wantTid]);
-  
-  //printf("We are in yield.\n");
-  
   if(wantTid < -2 || wantTid > 1023) {
-    printf("We are in the here\n");
 	runningThread->yret = ULT_INVALID;
   } else {
     switchThread(wantTid);
@@ -146,7 +140,6 @@ Tid ULT_DestroyThread(Tid tid)
   }
   
   if(tid < -2 || tid > 1023) {
-    printf("We are in the here\n");
 	return ULT_INVALID;
   }
   
@@ -155,25 +148,41 @@ Tid ULT_DestroyThread(Tid tid)
 		return ULT_NONE;
 	}
 	
+	//select the first thread in the ready list to destroy
 	int i = first();
-	ready[i]->zombie = 1;
-	readySize--;
-	return i;
+
+	//if the first one is the running thread, make it a zombie
+      if(i == runningThread->tid){
+              ready[i]->zombie = 1;
+      }
+	//otherwise free the memory associated with the thread
+      else{
+              free(ready[i]->context);
+              free(ready[i]->stk);
+              free(ready[i]);
+      }
+
+      readySize--;
+      return i;
   }
   
-  //if self, mark self and pop ready
+  // If self, mark self and pop ready
   if(tid == ULT_SELF) {
 	  int r = runningThread->tid;
 	  ready[r]->zombie = 1;
 	  readySize--;
+      // Can't free here but once the next runningThread has been picked we can
 	  ULT_Yield(ULT_ANY);
 	  return  r;
   }
   
   
-  //else mark ready[tid]->zombie = 1
+  //otherwise destroy the thread with TID tid
+  free(ready[tid]->context);
+  free(ready[tid]->stk);
+  free(ready[tid]);
+  ready[tid] = NULL;
   readySize--;
-  ready[tid]->zombie = 1;
   return tid;
 }
 
@@ -182,7 +191,7 @@ void switchThread(Tid wantTid)
   volatile int doneThat = 0;
   
   getcontext(runningThread->context);
-  printf("Done that for thread %d is: %d\n", runningThread->tid, doneThat);
+  
   if(doneThat == 0)
   {
     doneThat = 1; 
@@ -191,14 +200,14 @@ void switchThread(Tid wantTid)
       wantTid = ULT_SELF;
     }
 
-    //choose new thread to run
+    // Self case
     if(wantTid == ULT_SELF) {
-	  printf("We are in the ULT_SELF\n");
       runningThread->yret = runningThread->tid;
       setcontext(runningThread->context);
     }
+    
+    // Any case
     if(wantTid == ULT_ANY) {
-      printf("We are in the ULT_ANY\n");
       if(readySize == 0) {
 		  runningThread->yret = ULT_NONE;
 		  setcontext(runningThread->context);
@@ -206,19 +215,23 @@ void switchThread(Tid wantTid)
       
       int oldTid = runningThread->tid;
       ready[runningThread->tid] = runningThread;
+      
+      // Get thread tid from ready list 
       int i = first();
+      
+      // Make the thread the runningThread and remove its TCB from ready list
       runningThread = ready[i];
       ready[runningThread->tid] = NULL;
       ready[oldTid]->yret = runningThread->tid;
       setcontext(runningThread->context);
     }
     
+    // if thread exists on the ready and isn't dead, switch to it
     if(ready[wantTid] == NULL || ready[wantTid]->zombie == 1) {
 	  runningThread->yret = ULT_INVALID;
     } else {
       int oldTid = runningThread->tid;
       ready[runningThread->tid] = runningThread;
-      printf("We are in the ELSE\n");
       runningThread = ready[wantTid];
       ready[runningThread->tid] = NULL;
       ready[oldTid]->yret = runningThread->tid;
@@ -228,6 +241,9 @@ void switchThread(Tid wantTid)
   return;
 }
 
+/*
+ * Returns tid of an active thread on the ready list
+ */
 int first()
 {
   int j = runningThread->tid + 1;
@@ -243,6 +259,9 @@ int first()
   return j;
 }
 
+/*
+ * Return available tid/free index on ready list
+ */
 int getNextTid()
 {
   int i = 0;
@@ -252,4 +271,19 @@ int getNextTid()
   
   return i;
 }
+
+/*
+ * free any zombies on the ready list
+ */
+void freeZombies()
+{
+  int i;
+  for(i = 0; i < 1024; i++){
+    if(ready[i] != NULL && i != runningThread->tid && ready[i]->zombie == 1){
+        free(ready[i]->context);
+        free(ready[i]);
+    }
+  }
+}
+
 
