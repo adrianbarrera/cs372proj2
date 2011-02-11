@@ -50,8 +50,8 @@ int main(int argc, char **argv)
   /*
    * First, think about program counters (called eip in x86)
    */
-  printf("The memory address of the function main() is 0x%x\n", (int) main(int, char **));
-  printf("The memory address of the function probeUCStack() is 0x%x\n", (unsigned int)-1);
+  printf("The memory address of the function main() is 0x%x\n", (unsigned int) &main);
+  printf("The memory address of the function probeUCStack() is 0x%x\n", (unsigned int) &probeUCStack);
   printf("The memory address of the program counter (EIP) saved in mycontext is 0x%x\n", mycontext.uc_mcontext.gregs[REG_EIP]);
 
   /*
@@ -76,12 +76,12 @@ int main(int argc, char **argv)
    * Don't move on to the next part of the lab until you know how to change
    * the stack in a context when you manipulate a context to create a new thread.
    */
-  printf("The memory address of the local variable err is 0x%x\n", (unsigned int)-1);
-  printf("The memory address of the argument argc is 0x%x\n", (unsigned int)-1);
+  printf("The memory address of the local variable err is 0x%x\n", (unsigned int) &err);
+  printf("The memory address of the argument argc is 0x%x\n", (unsigned int) &argc);
   printf("The value of ucontext_t.uc_stack is 0x%x\n", (unsigned int)mycontext.uc_stack.ss_sp);
   printf("The value of anotherSample is 0x%x\n", anotherSample);
-  printf("The stack pointer stored as one of the registers (ESP) in uc_mcontext is 0x%x\n", (unsigned int)-1);
-  printf("The stack pointer stored as another one of the `registers` (UESP) in uc_mcontext is 0x%x\n", (unsigned int)-1);
+  printf("The stack pointer stored as one of the registers (ESP) in uc_mcontext is 0x%x\n", mycontext.uc_mcontext.gregs[REG_ESP]);
+  printf("The stack pointer stored as another one of the `registers` (UESP) in uc_mcontext is 0x%x\n", mycontext.uc_mcontext.gregs[REG_UESP]);
 
 
   printf("The number of bytes pushed onto the stack between argc and err was 0x%x\n", (unsigned int)(0xFFFFFF));
@@ -112,5 +112,5 @@ probeUCStack(char *str)
   stack_t s = newcontext.uc_stack;
   void * p = s.ss_sp; 
   printf("Stack pointer: %p\n", p);
-  return 0;
+  return (unsigned int) p;
 }
