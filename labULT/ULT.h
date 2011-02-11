@@ -11,7 +11,9 @@ typedef int Tid;
 typedef struct ThrdCtlBlk{
   struct ucontext * context;
   Tid tid;
+  Tid yret;
   int zombie;
+  int *stk;
 } ThrdCtlBlk;
 
 // implement later

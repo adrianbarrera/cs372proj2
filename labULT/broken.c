@@ -23,6 +23,7 @@ void switchThread(Tid wantTid);
 int first();
 Tid ULT_DestroyThread(Tid tid);
 int getNextTid();
+//void freeZombies();
 
 void stub(void (*root)(void *), void *arg)
 {
@@ -64,9 +65,11 @@ ULT_CreateThread(void (*fn)(void *), void *parg)
   if(init == 0) {
     initialize();
   }
-  
+ 
+  //freeZombies();
+ 
   // Check if we have too many threads
-  if(readySize == 1024)
+  if(readySize == 1023)
     return ULT_NOMORE;
   
   struct ucontext * cntxt;
@@ -83,6 +86,7 @@ ULT_CreateThread(void (*fn)(void *), void *parg)
   // Allocate stack
   //newThread->context->uc_stack.ss_sp = (void *)malloc(ULT_MIN_STACK);
   int * stack = malloc(ULT_MIN_STACK);
+  newThread->stk = stack;  
   //printf("REG_ESP after malloc is at address: %p\n", stack);
   stack = stack + (ULT_MIN_STACK / 4);
   //printf("REG_ESP after adjust is at address: %p\n", stack);
@@ -120,12 +124,13 @@ Tid ULT_Yield(Tid wantTid)
     initialize();
   }
   
+  //freeZombies();
   //printf("ready[wantTid]: %p\n", ready[wantTid]);
   
   //printf("We are in yield.\n");
   
   if(wantTid < -2 || wantTid > 1023) {
-    printf("We are in the here\n");
+    //printf("We are in the here\n");
 	runningThread->yret = ULT_INVALID;
   } else {
     switchThread(wantTid);
@@ -146,34 +151,50 @@ Tid ULT_DestroyThread(Tid tid)
   }
   
   if(tid < -2 || tid > 1023) {
-    printf("We are in the here\n");
+   printf("We are in the here\n");
 	return ULT_INVALID;
   }
   
   if(tid == ULT_ANY) {
+   printf("We are in the any\n");
     if(readySize == 0) {
 		return ULT_NONE;
 	}
 	
 	int i = first();
-	ready[i]->zombie = 1;
+//	if(i == runningThread->tid){
+		ready[i]->zombie = 1;
+//	}
+//	else{
+//		free(ready[i]->context);
+//		free(ready[i]->stk);
+//		free(ready[i]);
+//	}
+		
 	readySize--;
 	return i;
   }
   
   //if self, mark self and pop ready
   if(tid == ULT_SELF) {
+   printf("We are in the self\n");
 	  int r = runningThread->tid;
 	  ready[r]->zombie = 1;
 	  readySize--;
 	  ULT_Yield(ULT_ANY);
-	  return  r;
+	  return r;
   }
   
   
   //else mark ready[tid]->zombie = 1
+   printf("We are in the else\n");
+   printf("ready[tid]: %d\n", ready[tid]->tid);
+  //free(ready[tid]->context);
+  //free(ready[tid]->stk);
+  //free(ready[tid]);
+  //ready[tid] = NULL;
+   //printf("ready[tid]: %d\n", ready[tid]->tid);
   readySize--;
-  ready[tid]->zombie = 1;
   return tid;
 }
 
@@ -182,7 +203,7 @@ void switchThread(Tid wantTid)
   volatile int doneThat = 0;
   
   getcontext(runningThread->context);
-  printf("Done that for thread %d is: %d\n", runningThread->tid, doneThat);
+  //printf("Done that for thread %d is: %d\n", runningThread->tid, doneThat);
   if(doneThat == 0)
   {
     doneThat = 1; 
@@ -193,7 +214,7 @@ void switchThread(Tid wantTid)
 
     //choose new thread to run
     if(wantTid == ULT_SELF) {
-	  printf("We are in the ULT_SELF\n");
+	  //printf("We are in the ULT_SELF\n");
       runningThread->yret = runningThread->tid;
       setcontext(runningThread->context);
     }
@@ -203,7 +224,6 @@ void switchThread(Tid wantTid)
 		  runningThread->yret = ULT_NONE;
 		  setcontext(runningThread->context);
       }
-      
       int oldTid = runningThread->tid;
       ready[runningThread->tid] = runningThread;
       int i = first();
@@ -218,7 +238,7 @@ void switchThread(Tid wantTid)
     } else {
       int oldTid = runningThread->tid;
       ready[runningThread->tid] = runningThread;
-      printf("We are in the ELSE\n");
+      //printf("We are in the ELSE\n");
       runningThread = ready[wantTid];
       ready[runningThread->tid] = NULL;
       ready[oldTid]->yret = runningThread->tid;
@@ -253,3 +273,13 @@ int getNextTid()
   return i;
 }
 
+void freeZombies()
+{
+  int i;
+  for(i = 0; i < 1024; i++){
+    if(ready[i] != NULL && i != runningThread->tid && ready[i]->zombie == 1){
+	free(ready[i]->context);
+	free(ready[i]);
+    }
+  }	
+}
