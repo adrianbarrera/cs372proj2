@@ -50,7 +50,7 @@ int main(int argc, char **argv)
   /*
    * First, think about program counters (called eip in x86)
    */
-  printf("The memory address of the function main() is 0x%x\n", (unsigned int)-1);
+  printf("The memory address of the function main() is 0x%x\n", (int) main(int, char **));
   printf("The memory address of the function probeUCStack() is 0x%x\n", (unsigned int)-1);
   printf("The memory address of the program counter (EIP) saved in mycontext is 0x%x\n", mycontext.uc_mcontext.gregs[REG_EIP]);
 

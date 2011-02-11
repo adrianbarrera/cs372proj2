@@ -8,7 +8,7 @@
 #endif /* __USE_GNU */
 #include <ucontext.h>
 
-#include "ReadyList.h"
+//#include "ReadyList.h"
 #include "ULT.h"
 
 ThrdCtlBlk * ready[1024];
@@ -18,11 +18,22 @@ ThrdCtlBlk * runningThread;
 int nextTid = 0;
 int init = 0;
 Tid ret = -1;
-ReadyList *rl;
+//ReadyList *rl;
 
 void switchThread(Tid wantTid);
 int firstFree();
+Tid ULT_DestroyThread(Tid tid);
+int getNextTid();
 
+void stub(void (*root)(void *), void *arg)
+{
+  // thread starts here
+  Tid ret;
+  root(arg); // call root function
+  ret = ULT_DestroyThread(ULT_SELF);
+  assert(ret == ULT_NONE); // we should only get here if we are the last thread.
+  exit(0); // all threads are done, so process should exit 
+} 
 
 void initialize()
 {
@@ -30,10 +41,11 @@ void initialize()
 
   runningThread = (ThrdCtlBlk *)malloc(sizeof(struct ThrdCtlBlk));
   runningThread->context = (struct ucontext *)malloc(sizeof(struct ucontext));
+  //runningThread->context->uc_stack.ss_sp = (void *)malloc(ULT_MIN_STACK);
   
   // will be calling getcontext later
   //getcontext(runningThread->context);
-  rl = (ReadyList *)malloc(sizeof(ReadyList));
+  //rl = (ReadyList *)malloc(sizeof(ReadyList));
   
   runningThread->tid = 0;
   tidLog[0] = 1;
@@ -46,6 +58,21 @@ ULT_CreateThread(void (*fn)(void *), void *parg)
   if(init == 0) {
     initialize();
   }
+  
+  // Check if we have too many threads
+  
+  ThrdCtlBlk *newThread = (ThrdCtlBlk *)malloc(sizeof(ThrdCtlBlk));
+  newThread->context = (ucontext_t *)malloc(sizeof(ucontext_t));
+  newThread->context->uc_stack.ss_sp = (void *)malloc(ULT_MIN_STACK);
+  
+  getcontext(newThread->context);
+  
+  makecontext(newThread->context, (void (*) (void))stub, 2, *fn, *parg);
+  
+  newThread->tid = getNextTid();
+  ready[newThread->tid] = newThread;
+  tidLog[newThread->tid] = 1;
+  readySize++;
   
   assert(0); /* TBD */
   return ULT_FAILED;
@@ -140,4 +167,12 @@ int first()
   return j;
 }
 
-
+int getNextTid()
+{
+  int i = 0;
+  while(tidLog[i] == 1 && i != runningThread->tid && i < 1024) {
+    i++;
+  }
+  
+  return i;
+}
