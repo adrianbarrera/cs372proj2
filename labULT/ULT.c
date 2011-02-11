@@ -15,13 +15,12 @@ ThrdCtlBlk * ready[1024];
 int tidLog[1024];
 int readySize = 0;
 ThrdCtlBlk * runningThread;
-int nextTid = 0;
 int init = 0;
-Tid ret = -1;
+Tid yret = -1;
 //ReadyList *rl;
 
 void switchThread(Tid wantTid);
-int firstFree();
+int first();
 Tid ULT_DestroyThread(Tid tid);
 int getNextTid();
 
@@ -47,6 +46,12 @@ void initialize()
   //getcontext(runningThread->context);
   //rl = (ReadyList *)malloc(sizeof(ReadyList));
   
+  int i = 0;
+  while(i < 1024) {
+	  ready[i] = NULL;
+	  i++;
+  }
+  
   runningThread->tid = 0;
   tidLog[0] = 1;
   runningThread->zombie = 0;
@@ -60,22 +65,49 @@ ULT_CreateThread(void (*fn)(void *), void *parg)
   }
   
   // Check if we have too many threads
+  if(readySize == 1024)
+    return ULT_NOMORE;
   
+  struct ucontext * cntxt;
   ThrdCtlBlk *newThread = (ThrdCtlBlk *)malloc(sizeof(ThrdCtlBlk));
-  newThread->context = (ucontext_t *)malloc(sizeof(ucontext_t));
-  newThread->context->uc_stack.ss_sp = (void *)malloc(ULT_MIN_STACK);
+  cntxt = (struct ucontext *)malloc(sizeof(struct ucontext));
   
-  getcontext(newThread->context);
+  getcontext(cntxt);
   
-  makecontext(newThread->context, (void (*) (void))stub, 2, *fn, *parg);
+  newThread->context = cntxt;
+  
+  // Change PC to point to stub function
+  newThread->context->uc_mcontext.gregs[REG_EIP] = (unsigned int) &stub;
+  
+  // Allocate stack
+  //newThread->context->uc_stack.ss_sp = (void *)malloc(ULT_MIN_STACK);
+  int * stack = malloc(ULT_MIN_STACK);
+  //printf("REG_ESP after malloc is at address: %p\n", stack);
+  stack = stack + (ULT_MIN_STACK / 4);
+  //printf("REG_ESP after adjust is at address: %p\n", stack);
+  
+  if(stack == NULL)
+    return ULT_NOMEMORY;
+    
+  // move stack pointer and include arguments
+  *stack = (unsigned int) parg;
+  stack--;
+  //printf("REG_ESP after moving to top is at address: %p\n", stack);
+  *stack = (unsigned int) fn;
+  stack--;
+  //printf("REG_ESP after pushing args is at address: %p\n", stack);
+  
+  newThread->context->uc_mcontext.gregs[REG_ESP] = (unsigned int)stack;
   
   newThread->tid = getNextTid();
   ready[newThread->tid] = newThread;
+  //if(ready[newThread->tid] == NULL);
+  //printf("ready[newThread->tid]: %p\n", ready[newThread->tid]);
   tidLog[newThread->tid] = 1;
   readySize++;
   
-  assert(0); /* TBD */
-  return ULT_FAILED;
+  //printf("Tid of created thread: %d\n", ready[newThread->tid]->tid);
+  return newThread->tid;
 }
 
 
@@ -86,9 +118,13 @@ Tid ULT_Yield(Tid wantTid)
     initialize();
   }
   
+  //printf("ready[wantTid]: %p\n", ready[wantTid]);
+  
+  //printf("We are in yield.\n");
+  
   switchThread(wantTid);
   
-  return ret;
+  return yret;
 }
 
 
@@ -107,62 +143,64 @@ void switchThread(Tid wantTid)
   volatile int doneThat = 0;
   
   getcontext(runningThread->context);
-
   
   if(doneThat == 0)
   {
-    doneThat = 1;
-  
+    doneThat = 1; 
+
     if(wantTid == runningThread->tid) {
       wantTid = ULT_SELF;
     }
-  
+
     if(wantTid != ULT_ANY && wantTid != ULT_SELF) {
       if(wantTid < -2 || wantTid > 1023 || ready[wantTid] == NULL || ready[wantTid]->zombie == 1) {
-	ret = ULT_INVALID;
-	setcontext(runningThread->context);
+		printf("We are in the here\n");
+	    yret = ULT_INVALID;
+	    setcontext(runningThread->context);
       }
     }
-    
     //choose new thread to run
-    else if(wantTid == ULT_SELF) {
-      ret = runningThread->tid;
+    if(wantTid == ULT_SELF) {
+	  printf("We are in the ULT_SELF\n");
+      yret = runningThread->tid;
       setcontext(runningThread->context);
     }
-    
-    else if(wantTid == ULT_ANY) {
+    if(wantTid == ULT_ANY) {
+      printf("We are in the ULT_ANY\n");
       if(readySize == 0) {
-	ret = ULT_NONE;
-	setcontext(runningThread->context);
+		  yret = ULT_NONE;
+		  setcontext(runningThread->context);
       }
       
-      ready[runningThread->tid] = runningThead;
-      
+      ready[runningThread->tid] = runningThread;
       int i = first();
       runningThread = ready[i];
       ready[runningThread->tid] = NULL;
-      ret = runningThread->tid;
+      yret = runningThread->tid;
       setcontext(runningThread->context);
     }
-   
-    else {
-      ready[runningThread->tid] = runningThead;
-      
-      runningThread = ready[wantTid];
-      ready[runningThread->tid] = NULL;
-      ret = runningThread->tid;
-      setcontext(runningThread->context);
-    }
-  }
-  
+    
+    ready[runningThread->tid] = runningThread;
+    printf("We are in the ELSE\n");
+    runningThread = ready[wantTid];
+    ready[runningThread->tid] = NULL;
+    yret = runningThread->tid;
+    setcontext(runningThread->context);
+   }
   return;
 }
 
 int first()
 {
-  int j = 0;
-  while(tidLog[j] == 0 && j != runningThread->tid && j < 1024){
+  int j = runningThread->tid + 1;
+  while(tidLog[j] == 0 && j < 1024){
     j++;
+  }
+  if(j == 1024) {
+	  j = 0;
+	  while(tidLog[j] == 0 && j < runningThread->tid){
+	    j++;
+      }
   }
   return j;
 }
@@ -170,7 +208,7 @@ int first()
 int getNextTid()
 {
   int i = 0;
-  while(tidLog[i] == 1 && i != runningThread->tid && i < 1024) {
+  while(tidLog[i] == 1 && i < 1024) {
     i++;
   }
   

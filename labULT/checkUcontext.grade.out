@@ -3,14 +3,16 @@ Size of TCB: 12
 WORDSIZE 32
 NGREG 19
 A ucontext_t is 348 bytes
-Stack pointer: 0
-The memory address of the function main() is 0xffffffff
-The memory address of the program counter (EIP) saved in mycontext is 0xffffffff
-The memory address of the local variable err is 0xffffffff
-The memory address of the argument argc is 0xffffffff
-The value of ucontext_t.uc_stack is 0xbf96e410
-The value of anotherSample is 0x0
-The stack pointer stored as one of the registers (ESP) in uc_mcontext is 0xffffffff
-The stack pointer stored as another one of the `registers` (UESP) in uc_mcontext is 0xffffffff
+Stack pointer for main: 0x76b524
+Stack pointer: 0xc767b1
+The memory address of the function main() is 0x8048474
+The memory address of the function probeUCStack() is 0x8048698
+The memory address of the program counter (EIP) saved in mycontext is 0x80484ee
+The memory address of the local variable err is 0xbff87588
+The memory address of the argument argc is 0xbff875a0
+The value of ucontext_t.uc_stack is 0x76b524
+The value of anotherSample is 0xc767b1
+The stack pointer stored as one of the registers (ESP) in uc_mcontext is 0xbff87400
+The stack pointer stored as another one of the `registers` (UESP) in uc_mcontext is 0x804825c
 The number of bytes pushed onto the stack between argc and err was 0xffffff
 The number of bytes pushed onto the stack between err and when the stack was saved to mycontext was 0xffffffff
